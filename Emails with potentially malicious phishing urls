@@ -1,0 +1,32 @@
+//Emails with potential malicious phishing urls
+
+//This detection creates a dynamic list of urls from your Threat intelligence feed and matches this data against inbound emails to detect any emails with matching urls
+//Such emails should be investigated and dealt with especially if there are clickers
+
+let dt_lookBack = 4h;
+let ioc_lookBack = 14d;
+let suspiciousUrls =
+//This is the threat intel source ingested into your environment.
+//Feel free to change this to whatever threat intel provider you have and query for url data ingested
+    ThreatIntelligenceIndicator
+        | where TimeGenerated > ago(ioc_lookBack)
+        | where Tags contains "phishing"
+        | where isnotempty(Url);
+EmailEvents
+| where TimeGenerated > ago(dt_lookBack)
+| where EmailDirection == "Inbound"
+| project
+    TimeGenerated,
+    SenderMailFromAddress,
+    RecipientEmailAddress,
+    EmailDirection,
+    NetworkMessageId
+| join kind=inner (EmailUrlInfo) on NetworkMessageId
+| project
+    TimeGenerated,
+    SenderMailFromAddress,
+    RecipientEmailAddress,
+    EmailDirection,
+    Url,
+    UrlDomain
+| where Url has_any (suspiciousUrls)
